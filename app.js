@@ -440,11 +440,14 @@ const executeTrade = async (json) => {
                 orderQty = usedContractQty > 0 ? (freeInputQuantity + usedInputQuantity) * 1.85 : freeInputQuantity // If market reversal order, fully reverse position in one action to save on fees
                 // end edit for USDT support
               }
-
+              console.log('Ticker: ', TICKER)
               await exchange.createOrder(TICKER, orderType, 'buy', orderQty, orderQuotePrice, tradeParams)
                 .then(() => lastTradeDirection = 'long')
             } catch {
               console.log('ERROR PLACING A LONG MARKET ENTRY: Performing emergency exit in case you were reversing')
+              // stack trace for testing which USDT pairs are currently working with CCXT:
+              // } catch (e) {
+              //   console.log(e.stack);
               await shortMarketExit()
               return
             }
@@ -522,7 +525,6 @@ const executeTrade = async (json) => {
     }
 
     const setLongLimitExit = async (override_ltpp) => {
-      console.log('test: setLongLimitExit')
       if (override_ltpp || (override_ltpp == undefined && freeContractQty > usedContractQty)) { // If not using override_ltpp, will not set new ltpp targets if a new order comes in when a position is already open
         console.log('firing off setLongLimitExit...')
         let tradeParams = {} // Can't have TP/SL params on an exit order
