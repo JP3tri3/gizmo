@@ -378,18 +378,35 @@ const executeTrade = async (json) => {
         let tradeParams = {} // Can't have TP/SL params on an exit order
         let refreshedBalances = await getBalances() // Once an order is placed, we need the new usedContractQty to know for setting the limit exit
         let refreshedQuotePrice = refreshedBalances.quotePrice
-        let refreshedUsedContractQty = Math.floor(refreshedBalances.usedBaseBalance * refreshedQuotePrice * leverage)
+
+        let refreshedUsedContractQty
+        // added for USDT support
+        if (determineIfUSDT == true) {
+          refreshedUsedContractQty = refreshedBalances.usedBaseBalance / refreshedQuotePrice * leverage
+        } else {
+          refreshedUsedContractQty = Math.floor(refreshedBalances.usedBaseBalance * refreshedQuotePrice * leverage)
+        }
+        // end edit/add for USDT support
+
         if (ltpp && ltpp.length > 0) {
           ltpp.forEach(async (limitTakeProfitValue) => { // Passes in the value in the array, e.g. 0.2
             let limitTakeProfitPercent = parseFloat(limitTakeProfitValue * .01) // Convert the value to percent
             let limitTakeProfitPrice = (action == 'short_entry' || action == 'short_exit' || action == 'reverse_long_to_short') ? orderQuotePrice * (1 - limitTakeProfitPercent) : orderQuotePrice * (1 + limitTakeProfitPercent) // TP values are based off entry price, not price at time of limit_cancel_time_seconds
-            let exitOrderContractQty = Math.floor(refreshedUsedContractQty / ltpp.length) // Evenly distribute limit take profit targets
+
+            // edited for USDT support:
+            let exitOrderContractQty = refreshedUsedContractQty / ltpp.length // Evenly distribute limit take profit targets
+            if (determineIfUSDT == false) { exitOrderContractQty = Math.floor(exitOrderContractQty) }
+            // end edit for USDT support
+
             if (refreshedUsedContractQty > 0) {
               console.log('setting limit exit at', limitTakeProfitPrice, 'using', exitOrderContractQty, 'contracts: about', ((1 / ltpp.length) * 100) + '%', 'of the stack...')
               switch (EXCHANGE) {
                 case 'bybit':
                   try {
                     tradeParams.close_on_trigger = true // In bybit, must make a 'counter order' to close out open positions
+                    // added for usdt support:
+                    tradeParams.reduce_only = true // required for USDT, TODO: look to see if this will affect how reversals are setup
+                    // end added for usdt
                     await exchange.createOrder(TICKER, 'limit', 'buy', exitOrderContractQty, limitTakeProfitPrice, tradeParams)
                   } catch { return console.log('ERROR PLACING A SHORT LIMIT EXIT') }
                   break
@@ -447,11 +464,9 @@ const executeTrade = async (json) => {
 
             if (refreshedFreeInputQty > 0) {
               try {
-                // testing TODO: Remove
                 await exchange.createOrder(TICKER, orderType, 'buy', refreshedFreeInputQty, refreshedQuotePrice, tradeParams)
                   .then(() => lastTradeDirection = 'long')
-                // } catch { return console.log('ERROR PLACING A LONG LIMIT ENTRY') }
-              } catch (err) { console.log(err.stack); }
+              } catch { return console.log('ERROR PLACING A LONG LIMIT ENTRY') }
 
             } else { console.log('orderType=' + orderType, 'LIMIT ENTRY ORDER CANCELED, ALREADY AN OPEN POSITION?') }
           }
@@ -507,23 +522,39 @@ const executeTrade = async (json) => {
     }
 
     const setLongLimitExit = async (override_ltpp) => {
+      console.log('test: setLongLimitExit')
       if (override_ltpp || (override_ltpp == undefined && freeContractQty > usedContractQty)) { // If not using override_ltpp, will not set new ltpp targets if a new order comes in when a position is already open
         console.log('firing off setLongLimitExit...')
         let tradeParams = {} // Can't have TP/SL params on an exit order
         let refreshedBalances = await getBalances() // Once an order is placed, we need the new usedContractQty to know for setting the limit exit
         let refreshedQuotePrice = refreshedBalances.quotePrice
-        let refreshedUsedContractQty = Math.floor(refreshedBalances.usedBaseBalance * refreshedQuotePrice * leverage)
+        let refreshedUsedContractQty
+        // added for USDT support
+        if (determineIfUSDT == true) {
+          refreshedUsedContractQty = refreshedBalances.usedBaseBalance / refreshedQuotePrice * leverage
+        } else {
+          refreshedUsedContractQty = Math.floor(refreshedBalances.usedBaseBalance * refreshedQuotePrice * leverage)
+        }
+        // end edit/add for USDT support
+
         if (ltpp && ltpp.length > 0) {
           ltpp.forEach(async (limitTakeProfitValue) => { // Passes in the value in the array, e.g. 0.2
             let limitTakeProfitPercent = parseFloat(limitTakeProfitValue * .01) // Convert the value to percent
             let limitTakeProfitPrice = (action == 'short_entry' || action == 'short_exit' || action == 'reverse_long_to_short') ? orderQuotePrice * (1 - limitTakeProfitPercent) : orderQuotePrice * (1 + limitTakeProfitPercent) // TP values are based off entry price, not price at time of limit_cancel_time_seconds
-            let exitOrderContractQty = Math.floor(refreshedUsedContractQty / ltpp.length) // Evenly distribute limit take profit targets
+            // edited for USDT support:
+            let exitOrderContractQty = refreshedUsedContractQty / ltpp.length // Evenly distribute limit take profit targets
+            if (determineIfUSDT == false) { exitOrderContractQty = Math.floor(exitOrderContractQty) }
+            // end edit for USDT support
+
             if (refreshedUsedContractQty > 0) {
               console.log('setting limit exit at', limitTakeProfitPrice, 'using', exitOrderContractQty, 'contracts: about', ((1 / ltpp.length) * 100) + '%', 'of the stack...')
               switch (EXCHANGE) {
                 case 'bybit':
                   try {
                     tradeParams.close_on_trigger = true // In bybit, must make a 'counter order' to close out open positions
+                    // added for usdt support:
+                    tradeParams.reduce_only = true // required for USDT, TODO: look to see if this will affect how reversals are setup
+                    // end added for usdt
                     await exchange.createOrder(TICKER, 'limit', 'sell', exitOrderContractQty, limitTakeProfitPrice, tradeParams)
                   } catch { return console.log('ERROR PLACING A SHORT LIMIT EXIT') }
                   break
